@@ -19,7 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CURRENCIES } from '@/types/app'
 
 export default function RoomDetail() {
-  const { id } = useParams()
+  const params = useParams() as Record<string, string>
+  const id = params?.id as string
   const { user, loading: authLoading } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
@@ -44,7 +45,7 @@ export default function RoomDetail() {
       return
     }
 
-    const idStr = Array.isArray(id) ? id[0] : (id as string | undefined)
+    const idStr = id
     if (idStr) {
       fetchRoomData()
       
@@ -95,7 +96,7 @@ export default function RoomDetail() {
 
   const fetchRoom = async () => {
     try {
-      const idStr = Array.isArray(id) ? id[0] : (id as string)
+  const idStr = id
       const { data, error } = await supabase
         .from('rooms')
         .select('*')
@@ -138,7 +139,7 @@ export default function RoomDetail() {
 
   const fetchExpenses = async () => {
     try {
-      const idStr = Array.isArray(id) ? id[0] : (id as string)
+  const idStr = id
       const { data: expensesData, error: expensesError } = await supabase
         .from('expenses')
         .select('*')
@@ -216,7 +217,7 @@ export default function RoomDetail() {
 
     try {
       // Get all members
-      const idStr = Array.isArray(id) ? id[0] : (id as string)
+  const idStr = id
       const { data: members, error } = await supabase
         .from('room_members')
         .select('user_id')
