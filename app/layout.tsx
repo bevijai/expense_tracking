@@ -1,11 +1,15 @@
 import './globals.css'
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import { Toaster } from '@/components/ui/toaster'
 
 // Note: temporary disable metadata to isolate Netlify 500
-export const metadata = {} as Metadata
+const inter = Inter({ subsets: ['latin'] })
 
-// Ensure we run on Node.js runtime on Netlify (not Edge)
-export const runtime = 'nodejs'
+export const metadata: Metadata = {
+  title: 'Trip Expenses - Track Shared Expenses',
+  description: 'Track and split expenses with friends and family on your trips',
+}
 
 export default function RootLayout({
   children,
@@ -14,7 +18,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={inter.className}>
+        {children}
+        <Toaster />
+      </body>
     </html>
   )
 }

@@ -10,8 +10,5 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs@5.8.0"
 
-[functions]
-  directory = "netlify/functions"
-
 # If you use custom headers or redirects, add them below. The Next plugin
 # automatically configures routes for Next.js pages and API (app/ and pages/).
