@@ -1,10 +1,8 @@
 import './globals.css'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = {
-  title: 'Trip Expenses - Track Shared Expenses',
-  description: 'Track and split expenses with friends and family on your trips',
-}
+// Note: temporary disable metadata to isolate Netlify 500
+export const metadata = {} as Metadata
 
 export default function RootLayout({
   children,
