@@ -7,5 +7,6 @@ export async function GET() {
     ok: true,
     supabaseUrlPresent: Boolean(url),
     anonKeyPresent: Boolean(anon),
+    marker: 'm4'
   })
 }
