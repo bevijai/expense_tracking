@@ -13,7 +13,7 @@ export default function Home() {
     if (loading) return
 
     if (user) {
-      router.replace('/rooms')
+      router.replace('/dashboard')
     } else {
       router.replace('/login')
     }
