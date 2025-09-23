@@ -37,6 +37,7 @@ export function JoinRoomDialog({ open, onOpenChange, onSuccess }: JoinRoomDialog
 
     try {
       // First check if room exists
+      type RoomRow = { id: string; name: string }
       const { data: room, error: roomError } = await supabase
         .from('rooms')
         .select('id, name')
@@ -60,6 +61,7 @@ export function JoinRoomDialog({ open, onOpenChange, onSuccess }: JoinRoomDialog
       }
 
       // Check if there's already a pending request
+      type JoinRequestRow = { id: string; status: 'pending' | 'approved' | 'rejected' }
       const { data: existingRequest } = await supabase
         .from('join_requests')
         .select('id, status')
@@ -68,15 +70,16 @@ export function JoinRoomDialog({ open, onOpenChange, onSuccess }: JoinRoomDialog
         .single()
 
       if (existingRequest) {
-        if (existingRequest.status === 'pending') {
+        const req = existingRequest as JoinRequestRow
+        if (req.status === 'pending') {
           throw new Error('You already have a pending request for this room')
-        } else if (existingRequest.status === 'rejected') {
+        } else if (req.status === 'rejected') {
           throw new Error('Your request to join this room was rejected')
         }
       }
 
       // Create join request
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('join_requests')
         .insert([
           {
@@ -87,9 +90,10 @@ export function JoinRoomDialog({ open, onOpenChange, onSuccess }: JoinRoomDialog
 
       if (error) throw error
 
+      const roomRow = room as RoomRow
       toast({
         title: 'Join request sent!',
-        description: `Your request to join "${room.name}" has been sent to the room owner.`,
+        description: `Your request to join "${roomRow.name}" has been sent to the room owner.`,
       })
 
       setRoomId('')

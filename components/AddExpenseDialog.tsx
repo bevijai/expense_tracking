@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClientSupabaseClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Room, CURRENCIES } from '@/types/app'
+import type { Database } from '@/types/database'
 import {
   Dialog,
   DialogContent,
@@ -58,18 +59,18 @@ export function AddExpenseDialog({ open, onOpenChange, room, onSuccess }: AddExp
         toast({ title: 'Invalid FX rate', description: 'Provide a conversion rate to room currency.', variant: 'destructive' })
         return
       }
-      const { error } = await supabase
+      const payload: Database['public']['Tables']['expenses']['Insert'] = {
+        room_id: room.id,
+        user_id: user.id,
+        amount: numAmount,
+        description: description.trim(),
+        currency: currencyToUse,
+        fx_rate: fxToUse,
+      }
+
+      const { error } = await (supabase as any)
         .from('expenses')
-        .insert([
-          {
-            room_id: room.id,
-            user_id: user.id,
-            amount: numAmount,
-            description: description.trim(),
-            currency: currencyToUse,
-            fx_rate: fxToUse,
-          }
-        ])
+        .insert([payload])
 
       if (error) throw error
 

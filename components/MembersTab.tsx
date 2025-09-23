@@ -47,7 +47,7 @@ export function MembersTab({
     try {
       if (action === 'approve') {
         // First, approve the join request
-        const { data: request, error: updateError } = await supabase
+        const { data: request, error: updateError } = await (supabase as any)
           .from('join_requests')
           .update({ status: 'approved' })
           .eq('id', requestId)
@@ -57,7 +57,7 @@ export function MembersTab({
         if (updateError) throw updateError
 
         // Then add the user as a member
-        const { error: memberError } = await supabase
+        const { error: memberError } = await (supabase as any)
           .from('room_members')
           .insert([
             {
@@ -69,7 +69,7 @@ export function MembersTab({
         if (memberError) throw memberError
       } else {
         // Just reject the request
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('join_requests')
           .update({ status: 'rejected' })
           .eq('id', requestId)

@@ -32,7 +32,7 @@ export function ExpensesTab({ expenses, room, isOwner, onExpensesUpdate }: Expen
     setUpdatingExpense(expenseId)
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('expenses')
         .update({ status })
         .eq('id', expenseId)

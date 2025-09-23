@@ -51,7 +51,7 @@ export async function setupDatabase() {
 
     // Execute each statement
     for (const statement of statements) {
-      const { error } = await supabase.rpc('exec_sql', { sql: statement })
+      const { error } = await (supabase as any).rpc('exec_sql', { sql: statement })
       if (error) {
         console.error('Error executing statement:', statement, error)
         throw error
@@ -67,7 +67,7 @@ export async function setupDatabase() {
     ]
 
     for (const statement of rlsStatements) {
-      const { error } = await supabase.rpc('exec_sql', { sql: statement })
+      const { error } = await (supabase as any).rpc('exec_sql', { sql: statement })
       if (error) {
         console.error('Error enabling RLS:', statement, error)
         // Continue even if RLS fails - it might already be enabled
@@ -75,8 +75,8 @@ export async function setupDatabase() {
     }
 
     return { success: true, message: 'Database setup completed successfully!' }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Database setup failed:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: (error && typeof error.message === 'string') ? error.message : 'Unknown error' }
   }
 }

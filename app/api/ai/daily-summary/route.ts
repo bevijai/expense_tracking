@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get room details for currency
+    type RoomRow = { currency: string; name: string }
     const { data: room, error: roomError } = await supabase
       .from('rooms')
       .select('currency, name')
@@ -59,6 +60,12 @@ export async function POST(request: NextRequest) {
     const endDate = `${targetDate}T23:59:59.999Z`
 
     // Get approved expenses for the date
+    type ExpenseRow = {
+      amount: number
+      description: string
+      created_at: string
+      user_id: string
+    }
     const { data: expenses, error: expensesError } = await supabase
       .from('expenses')
       .select(`
@@ -80,14 +87,24 @@ export async function POST(request: NextRequest) {
     }
 
     if (!expenses || expenses.length === 0) {
+      // Derive room name in a type-safe way to avoid TS inference issues in CI builds
+      const roomName = (room as RoomRow | null)?.name ?? 'this room'
       return NextResponse.json({
         ok: true,
-        markdown: `# Daily Summary for ${targetDate}\n\nNo approved expenses found for this date in **${room.name}**.`
+        markdown: `# Daily Summary for ${targetDate}\n\nNo approved expenses found for this date in **${roomName}**.`
       })
     }
 
     // Get user emails for anonymization
-    const userIds = [...new Set(expenses.map(e => e.user_id))]
+    const expList = (expenses as unknown as ExpenseRow[]) || []
+    const userIds: string[] = []
+    const seenUsers: { [id: string]: true } = {}
+    for (const e of expList) {
+      if (!seenUsers[e.user_id]) {
+        seenUsers[e.user_id] = true
+        userIds.push(e.user_id)
+      }
+    }
     const userEmails: { [key: string]: string } = {}
     
     for (const userId of userIds) {
@@ -104,7 +121,7 @@ export async function POST(request: NextRequest) {
     const expensesByCategory: { [key: string]: number } = {}
     let totalSpent = 0
 
-    expenses.forEach(expense => {
+    expList.forEach((expense) => {
       const userAlias = anonymizeEmail(userEmails[expense.user_id])
       const amount = Number(expense.amount)
       totalSpent += amount
@@ -120,7 +137,7 @@ export async function POST(request: NextRequest) {
       })
 
       // Simple category detection based on description keywords
-      const description = expense.description.toLowerCase()
+  const description = expense.description.toLowerCase()
       let category = 'Other'
       if (description.includes('food') || description.includes('restaurant') || description.includes('meal')) {
         category = 'Food & Dining'
@@ -138,8 +155,8 @@ export async function POST(request: NextRequest) {
     // Prepare data for AI prompt
     const summaryData = {
       date: targetDate,
-      roomName: room.name,
-      currency: room.currency,
+      roomName: (room as RoomRow).name,
+      currency: (room as RoomRow).currency,
       totalSpent,
       expensesByUser,
       expensesByCategory,

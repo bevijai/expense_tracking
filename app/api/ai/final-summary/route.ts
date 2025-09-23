@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get room details
+    type RoomRow = { currency: string; name: string; created_at: string }
     const { data: room, error: roomError } = await supabase
       .from('rooms')
       .select('currency, name, created_at')
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get all approved expenses for the room
+    type ExpenseRow = { amount: number; description: string; created_at: string; user_id: string }
     const { data: expenses, error: expensesError } = await supabase
       .from('expenses')
       .select(`
@@ -76,13 +78,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!expenses || expenses.length === 0) {
+      const roomName = (room as RoomRow | null)?.name ?? 'this room'
       return NextResponse.json({
         ok: true,
-        markdown: `# Final Trip Summary\n\nNo approved expenses found for **${room.name}**.`
+        markdown: `# Final Trip Summary\n\nNo approved expenses found for **${roomName}**.`
       })
     }
 
     // Get all room members
+    type MemberRow = { user_id: string }
     const { data: members, error: membersError } = await supabase
       .from('room_members')
       .select('user_id')
@@ -96,7 +100,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user emails for anonymization
-    const userIds = [...new Set([...expenses.map(e => e.user_id), ...members.map(m => m.user_id)])]
+    const expList = (expenses as unknown as ExpenseRow[]) || []
+    const memList = (members as unknown as MemberRow[]) || []
+    const userIds: string[] = []
+    const seen: { [id: string]: true } = {}
+    for (const e of expList) {
+      if (!seen[e.user_id]) { seen[e.user_id] = true; userIds.push(e.user_id) }
+    }
+    for (const m of memList) {
+      if (!seen[m.user_id]) { seen[m.user_id] = true; userIds.push(m.user_id) }
+    }
     const userEmails: { [key: string]: string } = {}
     
     for (const userId of userIds) {
@@ -109,13 +122,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate member balances for settlements
-    const memberBalances: MemberBalance[] = members.map(member => {
-      const userExpenses = expenses
+    const memberBalances: MemberBalance[] = memList.map(member => {
+      const userExpenses = expList
         .filter(e => e.user_id === member.user_id)
         .reduce((sum, e) => sum + Number(e.amount), 0)
       
-      const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
-      const sharePerMember = totalExpenses / members.length
+      const totalExpenses = expList.reduce((sum, e) => sum + Number(e.amount), 0)
+      const sharePerMember = memList.length > 0 ? totalExpenses / memList.length : 0
 
       return {
         user_id: member.user_id,
@@ -135,7 +148,7 @@ export async function POST(request: NextRequest) {
     const dailyTotals: { [key: string]: number } = {}
     let totalSpent = 0
 
-    expenses.forEach(expense => {
+  expList.forEach(expense => {
       const userAlias = anonymizeEmail(userEmails[expense.user_id])
       const amount = Number(expense.amount)
       const date = new Date(expense.created_at).toISOString().split('T')[0]
@@ -169,20 +182,20 @@ export async function POST(request: NextRequest) {
     })
 
     // Calculate trip duration
-    const startDate = new Date(Math.min(...expenses.map(e => new Date(e.created_at).getTime())))
-    const endDate = new Date(Math.max(...expenses.map(e => new Date(e.created_at).getTime())))
+  const startDate = new Date(Math.min(...expList.map(e => new Date(e.created_at).getTime())))
+  const endDate = new Date(Math.max(...expList.map(e => new Date(e.created_at).getTime())))
     const tripDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
     // Prepare data for AI prompt
     const summaryData = {
-      roomName: room.name,
-      currency: room.currency,
+  roomName: (room as RoomRow).name,
+  currency: (room as RoomRow).currency,
       totalSpent,
-      memberCount: members.length,
-      expenseCount: expenses.length,
+  memberCount: memList.length,
+  expenseCount: expList.length,
       tripDays,
       avgPerDay: totalSpent / tripDays,
-      avgPerPerson: totalSpent / members.length,
+  avgPerPerson: memList.length > 0 ? totalSpent / memList.length : 0,
       expensesByUser,
       expensesByCategory,
       settlements: settlements.map(s => ({
