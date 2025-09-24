@@ -120,6 +120,55 @@ export type Database = {
           fx_rate?: number | null
         }
       }
+      itinerary_days: {
+        Row: {
+          id: string
+          room_id: string
+          date: string // ISO date (YYYY-MM-DD)
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          room_id: string
+          date: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          room_id?: string
+          date?: string
+          created_at?: string
+        }
+      }
+      itinerary_items: {
+        Row: {
+          id: string
+          day_id: string
+          time?: string | null // HH:MM
+          title: string
+          notes?: string | null
+          location?: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          day_id: string
+          time?: string | null
+          title: string
+          notes?: string | null
+          location?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          day_id?: string
+          time?: string | null
+          title?: string
+          notes?: string | null
+          location?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
