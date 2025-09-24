@@ -6,6 +6,7 @@
 [build.environment]
   # Upgrade Node version to satisfy @supabase/supabase-js deprecation warning for <=18
   NODE_VERSION = "20"
+  NETLIFY_NEXT_PLUGIN_DEBUG = "1"
   NEXT_TELEMETRY_DISABLED = "1"
 
 [[plugins]]

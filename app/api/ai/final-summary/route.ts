@@ -5,7 +5,9 @@ import { calculateSettlements } from '@/lib/utils/settlements'
 import { MemberBalance } from '@/types/app'
 
 export async function POST(request: NextRequest) {
-  try {
+  // TEMPORARY: disable AI processing during build debugging on Netlify
+  return NextResponse.json({ ok: true, markdown: '# Final Summary (temporarily disabled for deploy debug)' })
+  /* try {
     const { roomId } = await request.json()
 
     if (!roomId) {
@@ -298,5 +300,5 @@ Keep it comprehensive but readable, positive, and actionable. Use the currency s
       { ok: false, error: 'Failed to generate final summary. Please try again.' },
       { status: 500 }
     )
-  }
+  }*/
 }

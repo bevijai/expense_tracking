@@ -3,7 +3,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getOpenAIClient, getAIConfig, anonymizeEmail } from '@/lib/ai'
 
 export async function POST(request: NextRequest) {
-  try {
+  // TEMPORARY: disable AI processing during build debugging on Netlify
+  return NextResponse.json({ ok: true, markdown: '# Daily Summary (temporarily disabled for deploy debug)' })
+  /* try {
     const { roomId, date } = await request.json()
 
     if (!roomId) {
@@ -240,5 +242,5 @@ Keep it concise, positive, and actionable. Use the currency symbol from the data
       { ok: false, error: 'Failed to generate daily summary. Please try again.' },
       { status: 500 }
     )
-  }
+  }*/
 }
