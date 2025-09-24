@@ -61,7 +61,9 @@ export default function Rooms() {
         .order('created_at', { ascending: false })
 
       if (ownedResp.error) throw ownedResp.error
-      const ownedRooms = (ownedResp.data ?? []) as RoomRow[]
+  const ownedRoomsRaw = (ownedResp.data ?? []) as any[]
+  // Filter out potential Supabase join error sentinel objects
+  const ownedRooms: RoomRow[] = ownedRoomsRaw.filter(r => !r || typeof r !== 'object' ? false : !('error' in r))
 
       // 2) Room IDs where the user is a member
       const memberLinksResp = await supabase
@@ -87,7 +89,8 @@ export default function Rooms() {
           .order('created_at', { ascending: false })
 
         if (memberRoomsResp.error) throw memberRoomsResp.error
-        memberRoomsData = (memberRoomsResp.data ?? []) as RoomRow[]
+  const memberRoomsRaw = (memberRoomsResp.data ?? []) as any[]
+  memberRoomsData = memberRoomsRaw.filter(r => !r || typeof r !== 'object' ? false : !('error' in r)) as RoomRow[]
       }
 
       // 4) Combine and de-duplicate by id
