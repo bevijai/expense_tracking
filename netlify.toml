@@ -4,7 +4,8 @@
   command = "npm run build"
 
 [build.environment]
-  NODE_VERSION = "18"
+  # Upgrade Node version to satisfy @supabase/supabase-js deprecation warning for <=18
+  NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
 
 [[plugins]]
