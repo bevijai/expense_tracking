@@ -6,7 +6,10 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { Loader2, Plus, Trash2, RefreshCw } from 'lucide-react'
 import { createClientSupabaseClient } from '@/lib/supabase/client'
 
-type DayBundle = Awaited<ReturnType<typeof listItinerary>>[number]
+interface DayBundle {
+  day: { id: string; date: string }
+  items: Array<{ id: string; day_id: string; time: string | null; title: string; notes?: string | null; location?: string | null }>
+}
 
 export default function ItineraryPage() {
   const { user, loading } = useAuth()
@@ -28,6 +31,8 @@ export default function ItineraryPage() {
       setDetecting(true)
       const supabase = createClientSupabaseClient()
       try {
+        const uid = user?.id
+        if (!uid) { setDetecting(false); return }
         // find memberships
         const { data: memberRows, error: memberErr } = await supabase
           .from('room_members')
@@ -47,8 +52,8 @@ export default function ItineraryPage() {
         const { data: owned, error: ownErr } = await supabase
           .from('rooms')
           .select('id, name')
-          .eq('owner_id', user.id)
-          .limit(10)
+          .eq('owner_id', uid)
+          .limit(10) as unknown as { data: Array<{ id: string; name: string }> | null, error: any }
         if (ownErr) throw ownErr
         if (!cancelled) {
           setRooms(owned || [])
