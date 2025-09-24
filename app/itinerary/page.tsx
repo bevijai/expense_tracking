@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { listItinerary, addDay, addItem, deleteItem, deleteDay } from '@/lib/itinerary'
+import { listItinerary, addDay, addItem, deleteItem, deleteDay, addDaysRange } from '@/lib/itinerary'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Loader2, Plus, Trash2, RefreshCw } from 'lucide-react'
 import { createClientSupabaseClient } from '@/lib/supabase/client'
@@ -21,6 +21,9 @@ export default function ItineraryPage() {
   const [addingDay, setAddingDay] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [manualRoomId, setManualRoomId] = useState('')
+  const [rangeStart, setRangeStart] = useState('')
+  const [rangeEnd, setRangeEnd] = useState('')
+  const [bulkAdding, setBulkAdding] = useState(false)
 
   // Auto-detect a room for the user: first membership, else first owned
   useEffect(() => {
@@ -96,6 +99,20 @@ export default function ItineraryPage() {
       setError(e.message)
     } finally {
       setAddingDay(false)
+    }
+  }
+
+  async function handleBulkAdd() {
+    if (!roomId || !rangeStart || !rangeEnd) return
+    setBulkAdding(true)
+    setError(null)
+    try {
+      await addDaysRange(roomId, rangeStart, rangeEnd)
+      await refresh()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setBulkAdding(false)
     }
   }
 
@@ -188,6 +205,30 @@ export default function ItineraryPage() {
           </div>
         </div>
         {error && <div className="text-sm text-red-600">{error}</div>}
+        {roomId && (
+          <div className="rounded border bg-white/60 p-4 space-y-3">
+            <h2 className="font-semibold text-sm">Create / Extend Itinerary</h2>
+            <div className="flex flex-wrap gap-3 items-end text-sm">
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600">Start Date</label>
+                <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border rounded px-2 py-1 bg-white" />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600">End Date</label>
+                <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="border rounded px-2 py-1 bg-white" />
+              </div>
+              <button
+                onClick={handleBulkAdd}
+                disabled={!rangeStart || !rangeEnd || bulkAdding}
+                className="inline-flex items-center gap-1 rounded bg-indigo-600 text-white px-3 py-1 text-sm disabled:opacity-50"
+              >
+                {bulkAdding && <Loader2 className="h-4 w-4 animate-spin" />}
+                Generate Days
+              </button>
+              <span className="text-xs text-gray-500">Adds missing days in the inclusive range.</span>
+            </div>
+          </div>
+        )}
         {fetching && <div className="flex items-center gap-2 text-sm text-gray-600"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}
         {!fetching && data.length === 0 && roomId && (
           <div className="text-sm text-gray-600">No days yet. Add your first day.</div>

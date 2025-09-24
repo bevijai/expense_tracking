@@ -73,3 +73,34 @@ export async function deleteDay(id: string) {
   const { error } = await supabase.from('itinerary_days').delete().eq('id', id)
   if (error) throw error
 }
+
+// Bulk add a range of days (inclusive). Guards against adding duplicates.
+export async function addDaysRange(roomId: string, startDate: string, endDate: string) {
+  const start = new Date(startDate + 'T00:00:00Z')
+  const end = new Date(endDate + 'T00:00:00Z')
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new Error('Invalid start or end date')
+  if (start > end) throw new Error('Start date must be before or equal to end date')
+  // Hard safety limit
+  const diffDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1
+  if (diffDays > 60) throw new Error('Range too large (max 60 days)')
+
+  const { data: existing, error: existingErr } = await supabase
+    .from('itinerary_days')
+    .select('date')
+    .eq('room_id', roomId)
+  if (existingErr) throw existingErr
+  const existingSet = new Set((existing || []).map(d => d.date))
+
+  const rows: { room_id: string; date: string }[] = []
+  for (let i = 0; i < diffDays; i++) {
+    const d = new Date(start.getTime() + i * 86400000)
+    const iso = d.toISOString().split('T')[0]
+    if (!existingSet.has(iso)) rows.push({ room_id: roomId, date: iso })
+  }
+  if (rows.length === 0) return { inserted: 0 }
+  const { error: insertErr } = await supabase
+    .from('itinerary_days')
+    .insert(rows)
+  if (insertErr) throw insertErr
+  return { inserted: rows.length }
+}
