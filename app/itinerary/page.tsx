@@ -20,6 +20,7 @@ export default function ItineraryPage() {
   const [fetching, setFetching] = useState(false)
   const [addingDay, setAddingDay] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [manualRoomId, setManualRoomId] = useState('')
 
   // Auto-detect a room for the user: first membership, else first owned
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function ItineraryPage() {
         const { data: memberRows, error: memberErr } = await supabase
           .from('room_members')
           .select('room_id, rooms!inner(id, name)')
+          .eq('user_id', uid)
           .limit(10)
         if (memberErr) throw memberErr
         const memberRooms: Array<{ id: string; name: string }> = []
@@ -152,7 +154,29 @@ export default function ItineraryPage() {
                 <RefreshCw className="h-4 w-4" />
               </button>
             </div>
+            <button
+              onClick={refresh}
+              disabled={!roomId || fetching}
+              className="inline-flex items-center gap-1 rounded border border-blue-300 bg-white text-blue-700 px-3 py-1 text-sm disabled:opacity-50"
+            >
+              {fetching && <Loader2 className="h-4 w-4 animate-spin" />}
+              Load Itinerary
+            </button>
             {!roomId && !detecting && <span className="text-xs text-gray-600">Create or join a room first.</span>}
+            {!roomId && !detecting && (
+              <div className="flex items-center gap-2 text-xs">
+                <input
+                  placeholder="Enter Room ID"
+                  value={manualRoomId}
+                  onChange={e => setManualRoomId(e.target.value)}
+                  className="border rounded px-2 py-1 bg-white text-xs"
+                />
+                <button
+                  onClick={() => { if (manualRoomId.trim()) { setRoomId(manualRoomId.trim()); }}}
+                  className="px-2 py-1 rounded bg-indigo-600 text-white"
+                >Use ID</button>
+              </div>
+            )}
             <button
               onClick={handleAddDay}
               disabled={!roomId || addingDay}
