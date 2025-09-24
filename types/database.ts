@@ -41,6 +41,7 @@ export type Database = {
           color?: string | null
           archived_at?: string | null
         }
+        Relationships: []
       }
       room_members: {
         Row: {
@@ -61,6 +62,7 @@ export type Database = {
           user_id?: string
           joined_at?: string
         }
+        Relationships: []
       }
       join_requests: {
         Row: {
@@ -84,6 +86,7 @@ export type Database = {
           status?: 'pending' | 'approved' | 'rejected'
           requested_at?: string
         }
+        Relationships: []
       }
       expenses: {
         Row: {
@@ -119,6 +122,7 @@ export type Database = {
           currency?: string | null
           fx_rate?: number | null
         }
+        Relationships: []
       }
       itinerary_days: {
         Row: {
@@ -139,6 +143,7 @@ export type Database = {
           date?: string
           created_at?: string
         }
+        Relationships: []
       }
       itinerary_items: {
         Row: {
@@ -168,6 +173,7 @@ export type Database = {
           location?: string | null
           created_at?: string
         }
+        Relationships: []
       }
     }
     Views: {

@@ -5,7 +5,7 @@ type ItineraryDay = Database['public']['Tables']['itinerary_days']['Row']
 type ItineraryItem = Database['public']['Tables']['itinerary_items']['Row']
 
 export async function listItinerary(roomId: string) {
-  const { data: days, error } = await supabase
+  const { data: rawDays, error } = await supabase
     .from('itinerary_days')
     .select('*')
     .eq('room_id', roomId)
@@ -13,10 +13,11 @@ export async function listItinerary(roomId: string) {
 
   if (error) throw error
 
-  if (!days || days.length === 0) return []
+  const days = (rawDays as ItineraryDay[] | null) || []
+  if (days.length === 0) return []
 
   const dayIds = days.map(d => d.id)
-  const { data: items, error: itemsError } = await supabase
+  const { data: rawItems, error: itemsError } = await supabase
     .from('itinerary_items')
     .select('*')
     .in('day_id', dayIds)
@@ -24,8 +25,9 @@ export async function listItinerary(roomId: string) {
 
   if (itemsError) throw itemsError
 
+  const items = (rawItems as ItineraryItem[] | null) || []
   const grouped: Record<string, ItineraryItem[]> = {}
-  ;(items || []).forEach(it => {
+  items.forEach(it => {
     grouped[it.day_id] = grouped[it.day_id] || []
     grouped[it.day_id].push(it)
   })
@@ -40,17 +42,23 @@ export async function addDay(roomId: string, date: string) {
     .select('*')
     .single()
   if (error) throw error
-  return data
+  return data as ItineraryDay
 }
 
 export async function addItem(dayId: string, values: Partial<Omit<ItineraryItem,'id'|'day_id'|'created_at'>>) {
   const { data, error } = await supabase
     .from('itinerary_items')
-    .insert({ day_id: dayId, title: values.title || 'Untitled', time: values.time || null, notes: values.notes || null, location: values.location || null })
+    .insert({
+      day_id: dayId,
+      title: values.title || 'Untitled',
+      time: values.time || null,
+      notes: values.notes || null,
+      location: values.location || null
+    })
     .select('*')
     .single()
   if (error) throw error
-  return data
+  return data as ItineraryItem
 }
 
 export async function deleteItem(id: string) {
