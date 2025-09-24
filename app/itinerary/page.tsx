@@ -3,27 +3,66 @@
 import { useEffect, useState } from 'react'
 import { listItinerary, addDay, addItem, deleteItem, deleteDay } from '@/lib/itinerary'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Trash2, RefreshCw } from 'lucide-react'
+import { createClientSupabaseClient } from '@/lib/supabase/client'
 
 type DayBundle = Awaited<ReturnType<typeof listItinerary>>[number]
 
 export default function ItineraryPage() {
   const { user, loading } = useAuth()
-  const [roomId, setRoomId] = useState<string | null>(null) // TODO: tie to selected room (placeholder)
+  const [roomId, setRoomId] = useState<string | null>(null) // auto-detected or manually entered
+  const [detecting, setDetecting] = useState(false)
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>([])
   const [data, setData] = useState<DayBundle[]>([])
   const [fetching, setFetching] = useState(false)
   const [addingDay, setAddingDay] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // TEMP: pick first joined room via API later. For now, skip fetch until roomId set.
+  // Auto-detect a room for the user: first membership, else first owned
   useEffect(() => {
-    // Placeholder: in a future enhancement we will allow selecting active room.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async function inferRoom() {
-      // For now do nothing; UI will prompt user.
+    if (loading) return
+    if (!user) return
+    if (roomId) return
+    let cancelled = false
+    async function detect() {
+      setDetecting(true)
+      const supabase = createClientSupabaseClient()
+      try {
+        // find memberships
+        const { data: memberRows, error: memberErr } = await supabase
+          .from('room_members')
+          .select('room_id, rooms!inner(id, name)')
+          .limit(10)
+        if (memberErr) throw memberErr
+        const memberRooms: Array<{ id: string; name: string }> = []
+        memberRows?.forEach((r: any) => {
+          if (r.rooms) memberRooms.push({ id: r.rooms.id, name: r.rooms.name })
+        })
+        if (!cancelled && memberRooms.length > 0) {
+          setRooms(memberRooms)
+          setRoomId(memberRooms[0].id)
+          return
+        }
+        // fallback: owned rooms
+        const { data: owned, error: ownErr } = await supabase
+          .from('rooms')
+          .select('id, name')
+          .eq('owner_id', user.id)
+          .limit(10)
+        if (ownErr) throw ownErr
+        if (!cancelled) {
+          setRooms(owned || [])
+          if (owned && owned.length > 0) setRoomId(owned[0].id)
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e.message)
+      } finally {
+        if (!cancelled) setDetecting(false)
+      }
     }
-    inferRoom()
-  }, [])
+    detect()
+    return () => { cancelled = true }
+  }, [user, loading, roomId])
 
   async function refresh() {
     if (!roomId) return
@@ -88,8 +127,27 @@ export default function ItineraryPage() {
       <div className="container mx-auto px-4 py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Itinerary</h1>
-          <div className="flex gap-2">
-            {!roomId && <span className="text-sm text-gray-600">Select a room to manage itinerary (feature coming)</span>}
+          <div className="flex gap-3 items-center flex-wrap">
+            <div className="flex items-center gap-2 text-sm">
+              <label className="text-gray-600">Room:</label>
+              <select
+                className="border rounded px-2 py-1 bg-white text-sm"
+                disabled={detecting || rooms.length === 0}
+                value={roomId || ''}
+                onChange={e => setRoomId(e.target.value || null)}
+              >
+                {rooms.length === 0 && <option value="">{detecting ? 'Detecting…' : 'No rooms'}</option>}
+                {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              <button
+                onClick={() => { setRoomId(null); setRooms([]); }}
+                title="Re-detect rooms"
+                className="p-1 rounded border bg-white hover:bg-gray-50"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
+            {!roomId && !detecting && <span className="text-xs text-gray-600">Create or join a room first.</span>}
             <button
               onClick={handleAddDay}
               disabled={!roomId || addingDay}
@@ -107,8 +165,8 @@ export default function ItineraryPage() {
         )}
         {!roomId && (
           <div className="rounded border bg-white/60 p-4 text-sm text-gray-700">
-            <p className="mb-2 font-medium">Room selection pending</p>
-            <p>We will integrate room-based itinerary selection soon. For now this UI is ready once a room is chosen.</p>
+            <p className="mb-2 font-medium">No active room</p>
+            <p>Join or create a room to start building the itinerary. Use the Rooms tab to add one.</p>
           </div>
         )}
         <div className="space-y-4">
