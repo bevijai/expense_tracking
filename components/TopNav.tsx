@@ -23,8 +23,8 @@ export function TopNav() {
   if (hide) return null
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/50">
-      <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+    <header className="hidden md:block sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/50">
+      <div className="mx-auto px-6 h-14 flex items-center justify-between max-w-screen-lg">
         <Link href={user ? "/dashboard" : "/"} className="text-sm font-semibold tracking-tight">
           Trip Expenses
         </Link>

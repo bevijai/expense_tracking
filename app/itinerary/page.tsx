@@ -1,325 +1,141 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react'
-import { listItinerary, addDay, addItem, deleteItem, deleteDay, addDaysRange } from '@/lib/itinerary'
-import { COUNTRIES } from '@/types/app'
-import { useAuth } from '@/lib/hooks/useAuth'
-import { Loader2, Plus, Trash2, RefreshCw } from 'lucide-react'
-import { createClientSupabaseClient } from '@/lib/supabase/client'
+import React, { useEffect, useState } from 'react';
+import { listItinerary, addDay, addItem, deleteItem, deleteDay } from '@/lib/itinerary';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { Loader2, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { createClientSupabaseClient } from '@/lib/supabase/client';
 
 interface DayBundle {
-  day: { id: string; date: string }
-  items: Array<{ id: string; day_id: string; time: string | null; title: string; notes?: string | null; location?: string | null }>
+  day: { id: string; date: string };
+  items: Array<{ id: string; day_id: string; time: string | null; title: string }>;
 }
 
 export default function ItineraryPage() {
-  const { user, loading } = useAuth()
-  const [roomId, setRoomId] = useState<string | null>(null) // auto-detected or manually entered
-  const [detecting, setDetecting] = useState(false)
-  const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>([])
-  const [data, setData] = useState<DayBundle[]>([])
-  const [fetching, setFetching] = useState(false)
-  const [addingDay, setAddingDay] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [manualRoomId, setManualRoomId] = useState('')
-  const [rangeStart, setRangeStart] = useState('')
-  const [rangeEnd, setRangeEnd] = useState('')
-  const [bulkAdding, setBulkAdding] = useState(false)
-  const [aiCountry, setAiCountry] = useState('')
-  const [aiDays, setAiDays] = useState(5)
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
+  const { user, loading } = useAuth();
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>([]);
+  const [data, setData] = useState<DayBundle[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const [addingDay, setAddingDay] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Auto-detect a room for the user: first membership, else first owned
+  // Detect first available room (member first, then owned)
   useEffect(() => {
-    if (loading) return
-    if (!user) return
-    if (roomId) return
-    let cancelled = false
-    async function detect() {
-      setDetecting(true)
-      const supabase = createClientSupabaseClient()
-      try {
-        const uid = user?.id
-        if (!uid) { setDetecting(false); return }
-        // find memberships
-        const { data: memberRows, error: memberErr } = await supabase
-          .from('room_members')
-          .select('room_id, rooms!inner(id, name)')
-          .eq('user_id', uid)
-          .limit(10)
-        if (memberErr) throw memberErr
-        const memberRooms: Array<{ id: string; name: string }> = []
-        memberRows?.forEach((r: any) => {
-          if (r.rooms) memberRooms.push({ id: r.rooms.id, name: r.rooms.name })
-        })
-        if (!cancelled && memberRooms.length > 0) {
-          setRooms(memberRooms)
-          setRoomId(memberRooms[0].id)
-          return
-        }
-        // fallback: owned rooms
-        const { data: owned, error: ownErr } = await supabase
-          .from('rooms')
-          .select('id, name')
-          .eq('owner_id', uid)
-          .limit(10) as unknown as { data: Array<{ id: string; name: string }> | null, error: any }
-        if (ownErr) throw ownErr
-        if (!cancelled) {
-          setRooms(owned || [])
-          if (owned && owned.length > 0) setRoomId(owned[0].id)
-        }
-      } catch (e: any) {
-        if (!cancelled) setError(e.message)
-      } finally {
-        if (!cancelled) setDetecting(false)
-      }
-    }
-    detect()
-    return () => { cancelled = true }
-  }, [user, loading, roomId])
+    if (loading || !user || roomId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClientSupabaseClient();
+      const uid = user.id;
+      const { data: memberRows } = await supabase
+        .from('room_members')
+        .select('room_id, rooms!inner(id,name)')
+        .eq('user_id', uid)
+        .limit(10);
+      const list: Array<{ id: string; name: string }> = [];
+      memberRows?.forEach((r: any) => r.rooms && list.push({ id: r.rooms.id, name: r.rooms.name }));
+      if (!cancelled && list.length) { setRooms(list); setRoomId(list[0].id); return; }
+      const { data: owned } = await supabase.from('rooms').select('id,name').eq('owner_id', uid).limit(10);
+      if (!cancelled && owned && owned.length) { setRooms(owned); setRoomId(owned[0].id); }
+    })();
+    return () => { cancelled = true; };
+  }, [user, loading, roomId]);
 
   async function refresh() {
-    if (!roomId) return
-    setFetching(true)
-    setError(null)
+    if (!roomId) return;
+    setFetching(true); setError(null);
     try {
-      const rows = await listItinerary(roomId)
-      setData(rows as DayBundle[])
+      const rows = await listItinerary(roomId);
+      setData(rows as DayBundle[]);
     } catch (e: any) {
-      setError(e.message || 'Failed to load itinerary')
-    } finally {
-      setFetching(false)
-    }
+      setError(e.message || 'Failed to load itinerary');
+    } finally { setFetching(false); }
   }
+
+  useEffect(() => { refresh(); }, [roomId]);
 
   async function handleAddDay() {
-    if (!roomId) return
-    setAddingDay(true)
+    if (!roomId) return; setAddingDay(true);
     try {
-      const today = new Date().toISOString().split('T')[0]
-      await addDay(roomId, today)
-      await refresh()
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setAddingDay(false)
-    }
+      const today = new Date().toISOString().split('T')[0];
+      await addDay(roomId, today);
+      await refresh();
+    } catch (e: any) { setError(e.message); } finally { setAddingDay(false); }
   }
+  async function handleAddItem(dayId: string) { try { await addItem(dayId, { title: 'New Activity', time: null }); await refresh(); } catch (e: any) { setError(e.message); } }
+  async function handleDeleteItem(id: string) { try { await deleteItem(id); await refresh(); } catch (e: any) { setError(e.message); } }
+  async function handleDeleteDay(id: string) { if (!confirm('Delete this day and its items?')) return; try { await deleteDay(id); await refresh(); } catch (e: any) { setError(e.message); } }
 
-  async function handleBulkAdd() {
-    if (!roomId || !rangeStart || !rangeEnd) return
-    setBulkAdding(true)
-    setError(null)
-    try {
-      await addDaysRange(roomId, rangeStart, rangeEnd)
-      await refresh()
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setBulkAdding(false)
-    }
+  if (!user && !loading) {
+    return <div className="p-4 text-sm text-gray-600">Sign in to view your itinerary.</div>;
   }
-
-  async function handleGenerateAI() {
-    if (!roomId || !aiCountry || aiDays < 1) return
-    setAiLoading(true)
-    setAiSuggestion(null)
-    setError(null)
-    try {
-      // Placeholder: in future call /api/ai/itinerary (to implement)
-      // For now we just create a range starting today for aiDays
-      const start = new Date()
-      const end = new Date(start.getTime() + (aiDays - 1) * 86400000)
-      const startIso = start.toISOString().split('T')[0]
-      const endIso = end.toISOString().split('T')[0]
-      await addDaysRange(roomId, startIso, endIso)
-      await refresh()
-      setAiSuggestion(`Generated a ${aiDays}-day skeleton for ${aiCountry}. You can now add activities to each day.`)
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setAiLoading(false)
-    }
-  }
-
-  async function handleAddItem(dayId: string) {
-    try {
-      await addItem(dayId, { title: 'New Activity', time: null })
-      await refresh()
-    } catch (e: any) {
-      setError(e.message)
-    }
-  }
-
-  async function handleDeleteItem(id: string) {
-    try {
-      await deleteItem(id)
-      await refresh()
-    } catch (e: any) {
-      setError(e.message)
-    }
-  }
-
-  async function handleDeleteDay(id: string) {
-    if (!confirm('Delete this day and all its items?')) return
-    try {
-      await deleteDay(id)
-      await refresh()
-    } catch (e: any) {
-      setError(e.message)
-    }
-  }
-
-  useEffect(() => { refresh() }, [roomId])
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Itinerary</h1>
-          <div className="flex gap-3 items-center flex-wrap">
-            <div className="flex items-center gap-2 text-sm">
-              <label className="text-gray-600">Room:</label>
-              <select
-                className="border rounded px-2 py-1 bg-white text-sm"
-                disabled={detecting || rooms.length === 0}
-                value={roomId || ''}
-                onChange={e => setRoomId(e.target.value || null)}
-              >
-                {rooms.length === 0 && <option value="">{detecting ? 'Detecting…' : 'No rooms'}</option>}
-                {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-              <button
-                onClick={() => { setRoomId(null); setRooms([]); }}
-                title="Re-detect rooms"
-                className="p-1 rounded border bg-white hover:bg-gray-50"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
-            </div>
+    <div className="p-4 space-y-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-semibold text-sm">Itinerary</span>
+          <div className="flex items-center gap-2">
+            <label className="text-gray-600">Room:</label>
+            <select
+              className="border rounded px-2 py-1 bg-white"
+              disabled={!rooms.length}
+              value={roomId || ''}
+              onChange={e => setRoomId(e.target.value || null)}
+            >
+              {rooms.length === 0 && <option value="">None</option>}
+              {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+            <button
+              onClick={() => { setRoomId(null); setRooms([]); }}
+              className="p-1 border rounded bg-white"
+              title="Re-detect rooms"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
             <button
               onClick={refresh}
               disabled={!roomId || fetching}
-              className="inline-flex items-center gap-1 rounded border border-blue-300 bg-white text-blue-700 px-3 py-1 text-sm disabled:opacity-50"
+              className="px-2 py-1 border rounded bg-white flex items-center gap-1"
             >
-              {fetching && <Loader2 className="h-4 w-4 animate-spin" />}
-              Load Itinerary
+              {fetching && <Loader2 className="h-3 w-3 animate-spin" />}Reload
             </button>
-            {!roomId && !detecting && <span className="text-xs text-gray-600">Create or join a room first.</span>}
-            {!roomId && !detecting && (
-              <div className="flex items-center gap-2 text-xs">
-                <input
-                  placeholder="Enter Room ID"
-                  value={manualRoomId}
-                  onChange={e => setManualRoomId(e.target.value)}
-                  className="border rounded px-2 py-1 bg-white text-xs"
-                />
-                <button
-                  onClick={() => { if (manualRoomId.trim()) { setRoomId(manualRoomId.trim()); }}}
-                  className="px-2 py-1 rounded bg-indigo-600 text-white"
-                >Use ID</button>
-              </div>
-            )}
             <button
               onClick={handleAddDay}
               disabled={!roomId || addingDay}
-              className="inline-flex items-center gap-1 rounded bg-blue-600 text-white px-3 py-1 text-sm disabled:opacity-50"
+              className="px-2 py-1 rounded bg-blue-600 text-white flex items-center gap-1"
             >
-              {addingDay && <Loader2 className="h-4 w-4 animate-spin" />}
-              <Plus className="h-4 w-4" /> Day
+              {addingDay && <Loader2 className="h-3 w-3 animate-spin" />}<Plus className="h-3 w-3" />Day
             </button>
           </div>
         </div>
-        {error && <div className="text-sm text-red-600">{error}</div>}
-        {roomId && (
-          <div className="rounded border bg-white/60 p-4 space-y-3">
-            <h2 className="font-semibold text-sm">Create / Extend Itinerary</h2>
-            <div className="flex flex-wrap gap-3 items-end text-sm">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600">Start Date</label>
-                <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border rounded px-2 py-1 bg-white" />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600">End Date</label>
-                <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="border rounded px-2 py-1 bg-white" />
-              </div>
-              <button
-                onClick={handleBulkAdd}
-                disabled={!rangeStart || !rangeEnd || bulkAdding}
-                className="inline-flex items-center gap-1 rounded bg-indigo-600 text-white px-3 py-1 text-sm disabled:opacity-50"
-              >
-                {bulkAdding && <Loader2 className="h-4 w-4 animate-spin" />}
-                Generate Days
-              </button>
-              <span className="text-xs text-gray-500">Adds missing days in the inclusive range.</span>
-            </div>
-            <div className="h-px bg-gray-200 my-1" />
-            <div className="space-y-2">
-              <h3 className="text-xs font-medium text-gray-600">AI Assisted (skeleton only for now)</h3>
-              <div className="flex flex-wrap gap-3 items-end text-sm">
-                <div className="flex flex-col">
-                  <label className="text-xs text-gray-600">Country</label>
-                  <select value={aiCountry} onChange={e => setAiCountry(e.target.value)} className="border rounded px-2 py-1 bg-white">
-                    <option value="">Select</option>
-                    {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-col w-24">
-                  <label className="text-xs text-gray-600">Days</label>
-                  <input type="number" min={1} max={30} value={aiDays} onChange={e => setAiDays(Number(e.target.value))} className="border rounded px-2 py-1 bg-white" />
-                </div>
-                <button
-                  onClick={handleGenerateAI}
-                  disabled={!aiCountry || aiLoading}
-                  className="inline-flex items-center gap-1 rounded bg-purple-600 text-white px-3 py-1 text-sm disabled:opacity-50"
-                >
-                  {aiLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Generate Skeleton
-                </button>
-                {aiSuggestion && <span className="text-xs text-green-600 max-w-xs">{aiSuggestion}</span>}
-              </div>
-              <p className="text-[10px] text-gray-500">Future: send country + days to AI to propose activities; for now this just seeds day entries.</p>
-            </div>
-          </div>
-        )}
-        {fetching && <div className="flex items-center gap-2 text-sm text-gray-600"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}
-        {!fetching && data.length === 0 && roomId && (
-          <div className="text-sm text-gray-600">No days yet. Add your first day.</div>
-        )}
-        {!roomId && (
-          <div className="rounded border bg-white/60 p-4 text-sm text-gray-700">
-            <p className="mb-2 font-medium">No active room</p>
-            <p>Join or create a room to start building the itinerary. Use the Rooms tab to add one.</p>
-          </div>
-        )}
-        <div className="space-y-4">
-          {data.map(bundle => (
-            <div key={bundle.day.id} className="rounded-lg bg-white/70 backdrop-blur border p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="font-semibold">{bundle.day.date}</h2>
-                <div className="flex gap-2">
-                  <button onClick={() => handleAddItem(bundle.day.id)} className="text-xs px-2 py-1 rounded bg-emerald-600 text-white flex items-center gap-1"><Plus className="h-3 w-3"/>Item</button>
-                  <button onClick={() => handleDeleteDay(bundle.day.id)} className="text-xs px-2 py-1 rounded bg-red-600 text-white flex items-center gap-1"><Trash2 className="h-3 w-3"/>Day</button>
-                </div>
-              </div>
-              <ul className="space-y-1">
-                {bundle.items.map(it => (
-                  <li key={it.id} className="flex items-center justify-between text-sm bg-white/80 rounded px-2 py-1">
-                    <span className="flex-1">
-                      {it.time && <span className="text-gray-500 mr-2">{it.time}</span>}
-                      {it.title}
-                      {it.location && <span className="ml-2 text-xs text-blue-600">@ {it.location}</span>}
-                    </span>
-                    <button onClick={() => handleDeleteItem(it.id)} className="text-red-600 hover:text-red-800"><Trash2 className="h-4 w-4" /></button>
-                  </li>
-                ))}
-                {bundle.items.length === 0 && <li className="text-xs text-gray-500">No items yet.</li>}
-              </ul>
-            </div>
-          ))}
-        </div>
+        {error && <div className="text-xs text-red-600">{error}</div>}
+        {!roomId && <div className="text-xs text-gray-600">Join or create a room first.</div>}
+        {roomId && data.length === 0 && !fetching && <div className="text-xs text-gray-600">No days yet.</div>}
       </div>
-    </main>
-  )
+
+      <div className="space-y-3">
+        {data.map(bundle => (
+          <div key={bundle.day.id} className="border rounded p-3 bg-white space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-sm">{bundle.day.date}</span>
+              <div className="flex gap-2">
+                <button onClick={() => handleAddItem(bundle.day.id)} className="text-[10px] px-2 py-1 rounded bg-emerald-600 text-white flex items-center gap-1"><Plus className="h-3 w-3" />Item</button>
+                <button onClick={() => handleDeleteDay(bundle.day.id)} className="text-[10px] px-2 py-1 rounded bg-red-600 text-white flex items-center gap-1"><Trash2 className="h-3 w-3" />Day</button>
+              </div>
+            </div>
+            <ul className="space-y-1">
+              {bundle.items.map(it => (
+                <li key={it.id} className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1">
+                  <span>{it.title}</span>
+                  <button onClick={() => handleDeleteItem(it.id)} className="text-red-600"><Trash2 className="h-3 w-3" /></button>
+                </li>
+              ))}
+              {bundle.items.length === 0 && <li className="text-[10px] text-gray-500">No items.</li>}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
