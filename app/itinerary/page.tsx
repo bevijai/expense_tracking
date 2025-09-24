@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { listItinerary, addDay, addItem, deleteItem, deleteDay, addDaysRange } from '@/lib/itinerary'
+import { COUNTRIES } from '@/types/app'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Loader2, Plus, Trash2, RefreshCw } from 'lucide-react'
 import { createClientSupabaseClient } from '@/lib/supabase/client'
@@ -24,6 +25,10 @@ export default function ItineraryPage() {
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
   const [bulkAdding, setBulkAdding] = useState(false)
+  const [aiCountry, setAiCountry] = useState('')
+  const [aiDays, setAiDays] = useState(5)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
 
   // Auto-detect a room for the user: first membership, else first owned
   useEffect(() => {
@@ -113,6 +118,28 @@ export default function ItineraryPage() {
       setError(e.message)
     } finally {
       setBulkAdding(false)
+    }
+  }
+
+  async function handleGenerateAI() {
+    if (!roomId || !aiCountry || aiDays < 1) return
+    setAiLoading(true)
+    setAiSuggestion(null)
+    setError(null)
+    try {
+      // Placeholder: in future call /api/ai/itinerary (to implement)
+      // For now we just create a range starting today for aiDays
+      const start = new Date()
+      const end = new Date(start.getTime() + (aiDays - 1) * 86400000)
+      const startIso = start.toISOString().split('T')[0]
+      const endIso = end.toISOString().split('T')[0]
+      await addDaysRange(roomId, startIso, endIso)
+      await refresh()
+      setAiSuggestion(`Generated a ${aiDays}-day skeleton for ${aiCountry}. You can now add activities to each day.`)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setAiLoading(false)
     }
   }
 
@@ -226,6 +253,33 @@ export default function ItineraryPage() {
                 Generate Days
               </button>
               <span className="text-xs text-gray-500">Adds missing days in the inclusive range.</span>
+            </div>
+            <div className="h-px bg-gray-200 my-1" />
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium text-gray-600">AI Assisted (skeleton only for now)</h3>
+              <div className="flex flex-wrap gap-3 items-end text-sm">
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-600">Country</label>
+                  <select value={aiCountry} onChange={e => setAiCountry(e.target.value)} className="border rounded px-2 py-1 bg-white">
+                    <option value="">Select</option>
+                    {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col w-24">
+                  <label className="text-xs text-gray-600">Days</label>
+                  <input type="number" min={1} max={30} value={aiDays} onChange={e => setAiDays(Number(e.target.value))} className="border rounded px-2 py-1 bg-white" />
+                </div>
+                <button
+                  onClick={handleGenerateAI}
+                  disabled={!aiCountry || aiLoading}
+                  className="inline-flex items-center gap-1 rounded bg-purple-600 text-white px-3 py-1 text-sm disabled:opacity-50"
+                >
+                  {aiLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Generate Skeleton
+                </button>
+                {aiSuggestion && <span className="text-xs text-green-600 max-w-xs">{aiSuggestion}</span>}
+              </div>
+              <p className="text-[10px] text-gray-500">Future: send country + days to AI to propose activities; for now this just seeds day entries.</p>
             </div>
           </div>
         )}

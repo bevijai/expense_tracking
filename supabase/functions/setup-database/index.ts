@@ -67,6 +67,26 @@ Deno.serve(async (req) => {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
 
+      -- Itinerary days table
+      CREATE TABLE IF NOT EXISTS itinerary_days (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(room_id, date)
+      );
+
+      -- Itinerary items table
+      CREATE TABLE IF NOT EXISTS itinerary_items (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        day_id UUID NOT NULL REFERENCES itinerary_days(id) ON DELETE CASCADE,
+        time TEXT,
+        title TEXT NOT NULL,
+        notes TEXT,
+        location TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
       -- Create indexes for better performance
       CREATE INDEX IF NOT EXISTS idx_room_members_room_id ON room_members(room_id);
       CREATE INDEX IF NOT EXISTS idx_room_members_user_id ON room_members(user_id);
@@ -80,6 +100,8 @@ Deno.serve(async (req) => {
       ALTER TABLE room_members ENABLE ROW LEVEL SECURITY;
       ALTER TABLE join_requests ENABLE ROW LEVEL SECURITY;
       ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE itinerary_days ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE itinerary_items ENABLE ROW LEVEL SECURITY;
 
       -- Drop existing policies if they exist
       DROP POLICY IF EXISTS "Users can view rooms they own or are members of" ON rooms;
@@ -95,6 +117,12 @@ Deno.serve(async (req) => {
       DROP POLICY IF EXISTS "Users can view expenses in rooms they belong to" ON expenses;
       DROP POLICY IF EXISTS "Room members can create expenses" ON expenses;
       DROP POLICY IF EXISTS "Room owners can update expense status" ON expenses;
+  DROP POLICY IF EXISTS "Users can view itinerary days" ON itinerary_days;
+  DROP POLICY IF EXISTS "Users can insert itinerary days" ON itinerary_days;
+  DROP POLICY IF EXISTS "Users can delete itinerary days" ON itinerary_days;
+  DROP POLICY IF EXISTS "Users can view itinerary items" ON itinerary_items;
+  DROP POLICY IF EXISTS "Users can insert itinerary items" ON itinerary_items;
+  DROP POLICY IF EXISTS "Users can delete itinerary items" ON itinerary_items;
 
       -- RLS Policies for rooms
       CREATE POLICY "Users can view rooms they own or are members of" ON rooms
@@ -183,6 +211,73 @@ Deno.serve(async (req) => {
         FOR UPDATE TO authenticated
         USING (room_id IN (SELECT id FROM rooms WHERE owner_id = auth.uid()))
         WITH CHECK (room_id IN (SELECT id FROM rooms WHERE owner_id = auth.uid()));
+
+      -- Itinerary policies
+      CREATE POLICY "Users can view itinerary days" ON itinerary_days
+        FOR SELECT TO authenticated
+        USING (
+          room_id IN (
+            SELECT id FROM rooms WHERE owner_id = auth.uid()
+            UNION
+            SELECT room_id FROM room_members WHERE user_id = auth.uid()
+          )
+        );
+
+      CREATE POLICY "Users can insert itinerary days" ON itinerary_days
+        FOR INSERT TO authenticated
+        WITH CHECK (
+          room_id IN (
+            SELECT id FROM rooms WHERE owner_id = auth.uid()
+            UNION
+            SELECT room_id FROM room_members WHERE user_id = auth.uid()
+          )
+        );
+
+      CREATE POLICY "Users can delete itinerary days" ON itinerary_days
+        FOR DELETE TO authenticated
+        USING (
+          room_id IN (
+            SELECT id FROM rooms WHERE owner_id = auth.uid()
+            UNION
+            SELECT room_id FROM room_members WHERE user_id = auth.uid()
+          )
+        );
+
+      CREATE POLICY "Users can view itinerary items" ON itinerary_items
+        FOR SELECT TO authenticated
+        USING (
+          day_id IN (
+            SELECT id FROM itinerary_days WHERE room_id IN (
+              SELECT id FROM rooms WHERE owner_id = auth.uid()
+              UNION
+              SELECT room_id FROM room_members WHERE user_id = auth.uid()
+            )
+          )
+        );
+
+      CREATE POLICY "Users can insert itinerary items" ON itinerary_items
+        FOR INSERT TO authenticated
+        WITH CHECK (
+          day_id IN (
+            SELECT id FROM itinerary_days WHERE room_id IN (
+              SELECT id FROM rooms WHERE owner_id = auth.uid()
+              UNION
+              SELECT room_id FROM room_members WHERE user_id = auth.uid()
+            )
+          )
+        );
+
+      CREATE POLICY "Users can delete itinerary items" ON itinerary_items
+        FOR DELETE TO authenticated
+        USING (
+          day_id IN (
+            SELECT id FROM itinerary_days WHERE room_id IN (
+              SELECT id FROM rooms WHERE owner_id = auth.uid()
+              UNION
+              SELECT room_id FROM room_members WHERE user_id = auth.uid()
+            )
+          )
+        );
 
       -- Function to automatically add room owner as member
       CREATE OR REPLACE FUNCTION add_owner_as_member()

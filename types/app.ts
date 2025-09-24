@@ -47,3 +47,24 @@ export const CURRENCIES = [
   { code: 'THB', name: 'Thai Baht', symbol: '฿' },
   { code: 'SGD', name: 'Singapore Dollar', symbol: 'S$' },
 ] as const
+
+export interface CountryOption {
+  code: string
+  name: string
+  continent?: string
+}
+
+export const COUNTRIES: CountryOption[] = [
+  { code: 'US', name: 'United States' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'FR', name: 'France' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'TH', name: 'Thailand' },
+  { code: 'SG', name: 'Singapore' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'BR', name: 'Brazil' },
+]
