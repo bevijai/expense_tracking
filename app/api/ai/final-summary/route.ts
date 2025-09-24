@@ -250,7 +250,15 @@ Keep it comprehensive but readable, positive, and actionable. Use the currency s
 
     // Get AI configuration
     const aiConfig = getAIConfig()
-    const openai = getOpenAIClient()
+    let openai: any
+    try {
+      openai = getOpenAIClient()
+    } catch (e: any) {
+      if (e.message.includes('AI disabled at build time')) {
+        return NextResponse.json({ ok: true, markdown: '# Final Trip Summary\n\nAI summarization disabled during build.' })
+      }
+      throw e
+    }
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({

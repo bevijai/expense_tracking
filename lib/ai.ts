@@ -7,19 +7,30 @@ export const DEFAULT_TEMPERATURE = 0.2
 
 let openaiClient: OpenAI | null = null
 
+function isBuildTime() {
+  // Heuristic: Netlify/Next build has no VERCEL/NETLIFY env for runtime functions and NODE_ENV === 'production'
+  // but lacks our OPENAI_API_KEY. We treat absence of the key during a build as "AI disabled" rather than fatal.
+  return process.env.BUILD_ID || process.env.NETLIFY === 'true'
+}
+
 export function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY
-  
+
   if (!apiKey) {
+    if (isBuildTime()) {
+      // Return a proxy that will throw only if actually used at runtime
+      return new Proxy({} as OpenAI, {
+        get() {
+          throw new Error('AI disabled at build time (OPENAI_API_KEY missing).')
+        }
+      })
+    }
     throw new Error('AI is not configured. OPENAI_API_KEY environment variable is missing.')
   }
 
   if (!openaiClient) {
-    openaiClient = new OpenAI({
-      apiKey: apiKey,
-    })
+    openaiClient = new OpenAI({ apiKey })
   }
-
   return openaiClient
 }
 

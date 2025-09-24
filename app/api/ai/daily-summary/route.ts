@@ -192,7 +192,15 @@ Keep it concise, positive, and actionable. Use the currency symbol from the data
 
     // Get AI configuration
     const aiConfig = getAIConfig()
-    const openai = getOpenAIClient()
+    let openai: any
+    try {
+      openai = getOpenAIClient()
+    } catch (e: any) {
+      if (e.message.includes('AI disabled at build time')) {
+        return NextResponse.json({ ok: true, markdown: `# Daily Summary for ${summaryData.date}\n\nAI summarization disabled during build.` })
+      }
+      throw e
+    }
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
